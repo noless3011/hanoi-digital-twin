@@ -1,0 +1,53 @@
+{
+ "subtitle": "How much each behaviour parameter moves the image-space matching score, for the choice model and the priority model. Bưởi – Hoàng Hoa Thám, 12 clips of 3 minutes (6 and 8 Nov 2026). Morris elementary effects, 6,576 simulations, run 16 Nov 2026 with twin/calibrate/sensitivity.py.",
+ "summary": [
+  "<b>Choice model: every parameter moves the score, but mostly by making traffic jam.</b> Desired speed <i>v0</i> leads (0.091, 6× the seed noise), then acceleration <i>a</i> (0.060). <i>T</i>, <i>vlat</i> and <i>T_imp</i> are at the noise level (0.011–0.016 against 0.015). For every parameter σ is about as large as the effect: what one parameter does depends strongly on the others.",
+  "<b>Priority model: the score is mostly about speed and demand, not driver interaction.</b> One speed value, route 0 at 1/3 of its length, has 15× the noise (0.098). Next come the speed at the start of route 0, <i>keep</i> (how much of its observed entry speed a driver keeps) and <i>turn_1</i> (the main entry's route split, a demand correction). The gap parameters <i>T</i>, <i>s0</i> and <i>clat</i> move the score only 1.5–3× the noise.",
+  "<b>Safety and match are driven by different parameters.</b> The gap parameters barely change the score but dominate touching: in the priority model <i>s0</i> has the largest effect on contacts (0.47 touching pairs per vehicle) while it is one of the weakest on the score. The score cannot calibrate them; only the contact penalty or constraint does.",
+  "<b>Nine of the priority model's 25 parameters can be fixed</b> without losing anything the score can see: the four speeds of route 2, the last speed point of routes 0 and 1, <i>v_free</i> and <i>turn_2</i> (all within 1.3× the noise).",
+  "<b>The priority model's score is half as noisy</b> (seed noise 0.007 against 0.015) and its effects are more monotonic. That is a large part of why CMA-ES improved it far more than the choice model."
+ ],
+ "method_intro": [
+  "The score is the image-space distance between simulation and video, from 0 (identical) up: the weighted mean of motion, spacing, occupancy map, occupancy over time, crossings and headways. Every parameter is placed on 0..1 over its search bounds, on its own log or linear scale, which is the space the CMA-ES search works in."
+ ],
+ "method": [
+  "<b>Morris trajectories.</b> Each starts at a random point of a 4-level grid and changes one parameter at a time, in random order, by 2/3 of its range. Every point is simulated on all 12 clips and the score is averaged. Choice model: 12 parameters, 16 trajectories, 2,688 simulations. Priority model: 25 parameters, 12 trajectories, 3,888 simulations.",
+  "<b>Effect</b> (Morris μ*): the mean |change of the score| over those steps. It answers: if this parameter moves across most of its range, how much does the score change, averaged over where the other parameters are?",
+  "<b>σ</b>: the spread of the signed changes. σ close to or above the effect means the parameter's influence depends on the other parameters (interactions), or changes sign along its range.",
+  "<b>Noise floor.</b> Each trajectory's start is also simulated with a different random seed. The mean |change| between the two seeds is what a step that does nothing would show. Effects within it cannot be told apart from luck; above twice it they are clear.",
+  "Within a trajectory the seed is fixed, so the changes come from the parameter, not from new random draws.",
+  "Because steps span most of each range, these are <i>global</i> effects: they include the far corners where vehicles jam or touch a lot. That is the question an optimiser searching the whole range faces. Near a good fit effects are smaller; an earlier one-at-a-time scan around the choice model's defaults found only <i>v0</i> mattering there."
+ ],
+ "choice": [
+  "Seed noise on the score: <b>0.015</b>. Scores at the 16 random starting points ranged from 0.287 to 0.484 (median 0.330); for comparison, the fitted model scored 0.232 on the six 6 Nov clips and 0.250 on the six 8 Nov clips.",
+  "<b>v0</b> is the strongest parameter (0.091) and the most consistent in direction: raising it brings the simulation closer (−0.074 on average), through spacing and the occupancy map. Slow drivers bunch up and fill the picture; the video's vehicles do not. It costs a little in motion (+0.061 when raised), which is the speed-versus-placement trade-off seen in the fits.",
+  "<b>a</b>, <b>w_risk</b> and <b>clat</b> act mainly through jams. Weak acceleration, a high weight on risk or a wide sideways clearance makes drivers hold back until the junction locks (their effect on the jammed share is 0.06–0.11). Jams also raise touching, because arrivals are placed into the standing queue: <i>clat</i> and <i>w_risk</i> have the largest contact effects (0.35 and 0.31) although they make drivers more careful.",
+  "<b>w_pos</b> (pull back to one's own position across the road) consistently makes the match worse when raised (+0.038): the video's riders do not hold a lane position.",
+  "<b>T, vlat and T_imp are within the noise</b> (1.1×, 1.0× and 0.7×). The time gap <i>T</i> is a standard car-following parameter, but at this camera's resolution the score cannot see it. It does change touching (0.15), so it matters for safety, not for the match.",
+  "For every parameter σ is roughly equal to the effect (and above it for <i>a</i>, <i>w_risk</i>, <i>b</i>, <i>s0</i>): the choice model's parameters interact strongly. Tuning them one at a time would not work; a joint search such as CMA-ES is needed."
+ ],
+ "priority": [
+  "Seed noise on the score: <b>0.0067</b>, less than half the choice model's: the priority model has fewer random interactions. Scores at the 12 random starts ranged from 0.316 to 0.548 (median 0.419); for comparison, the fitted model scored 0.252 on the six 6 Nov clips and 0.270 on the six 8 Nov clips.",
+  "<b>Route 0's speed dominates.</b> Route 0 is the main entry's first route and carries most of the traffic. Its speed at 1/3 of its length has an effect of 0.098 (15× the noise), always in the same direction: faster brings the simulation closer, through spacing and occupancy. Its starting speed (0.045) acts through crossings and headways, in either direction. The other three busy routes' speeds matter far less (route 3 up to 0.018, route 1 up to 0.017), and route 2's barely at all (0.0006–0.008).",
+  "<b>keep</b> (0.043): drivers who keep the speed they were first seen at make the match worse (+0.031 when raised) and the road jam more. Vehicles first seen slow crawl through the whole junction. This matches the fitted value of 0.07.",
+  "<b>turn_1</b> (0.039) is not behaviour: it moves arrivals from the main entry's first route to its second, correcting the demand. Raising it always helps (−0.039, small σ), almost entirely through headways (−0.17) and crossings (−0.09). This is the demand fault showing up as a parameter.",
+  "<b>large</b> (0.026): letting cars, vans and buses drive nearer two-wheeler speed helps (−0.025).",
+  "<b>The gap parameters barely move the score but decide safety.</b> <i>clat</i> 0.020 (2.9×), <i>T</i> 0.014 (2.0×), <i>s0</i> 0.010 (1.5×) on the score, against 0.35, 0.24 and 0.47 touching pairs per vehicle: the three largest contact effects in the model.",
+  "Here σ is mostly below the effect (for route 0's speed σ is half the effect, for <i>turn_1</i> 0.6×): the effects are fairly monotonic and add up. That gives the optimiser a smoother problem than the choice model."
+ ],
+ "implications": [
+  "<b>Measure speeds and route shares; do not fit them.</b> In the priority model the six strongest parameters are speeds, demand and <i>keep</i>, and the score responds to them most because placing vehicles in time and space is what it measures. Free speed per route and route shares can be measured from the video in the image (image speed ÷ the camera's pixels-per-metre map; entry and exit zones). Fitting them lets the optimiser bend them to hide demand errors, as in the earlier fit's speed profiles.",
+  "<b>Fix what the score cannot see.</b> Priority model: the nine parameters within 1.3× the noise (route 2's four speeds, the last speed point of routes 0 and 1, <i>v_free</i>, <i>turn_2</i>). Choice model: <i>T_imp</i>, <i>vlat</i> and <i>T</i> as far as the match is concerned. Fewer free parameters means a faster, more stable search whose results mean something.",
+  "<b>Set the gap parameters by safety, not by the score.</b> <i>T</i>, <i>s0</i>, <i>clat</i> (and the choice model's <i>w_risk</i>) change touching much more than the score. Fit them with an explicit constraint on touching pairs per vehicle, or a two-objective search (score against touching), rather than a fixed penalty weight.",
+  "<b>Keep the choice model's search away from the jamming corner.</b> Most of its global effects come from parameter combinations that gridlock the junction. Narrower bounds (for example v0 ≥ 5 m/s, a ≥ 1 m/s², clat ≤ 0.8 m, w_risk ≤ 10) remove that region, where nothing realistic lives, and leave the optimiser the part of the space that matters.",
+  "<b>Use more than one seed per clip in the choice model's search.</b> Its seed noise (0.015) is the same size as the effects of <i>T</i>, <i>vlat</i> and <i>T_imp</i>, and larger than the gain of its earlier fit (0.015 on the fit clips). Two or three seeds halve the noise CMA-ES sees.",
+  "<b>Interactions call for a joint search.</b> The choice model's σ ≈ effect for every parameter: one-at-a-time tuning or coordinate search would mislead. After cutting the priority model to ~10 parameters, Bayesian optimisation becomes a reasonable alternative to CMA-ES."
+ ],
+ "caveats": [
+  "One scene (Bưởi), one camera. The ranking of the route speeds in particular is specific to this junction's layout and traffic.",
+  "12–16 trajectories per model: the effects are estimates. Rankings of parameters with effects within about 30% of each other are not reliable; the large gaps (route 0's speed, v0, the noise-level group) are.",
+  "Runs where more than 80 vehicles are on the road at once are stopped early and scored on what was simulated, as in the search. That caps how bad a jammed run can score and so understates the effects of jam-causing parameters slightly.",
+  "<i>turn_1</i>'s large effect exists because the demand's route split is wrong. Once demand is measured correctly, it should disappear.",
+  "Effects are over the full search bounds. Near the fitted values most parameters move the score less; a local analysis around the fit would answer which parameters are pinned down there."
+ ]
+}

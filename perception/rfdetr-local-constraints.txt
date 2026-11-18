@@ -1,0 +1,5 @@
+# Preserve the existing GTX 1650 CUDA environment and OpenCV window support.
+torch==2.7.1+cu126
+torchvision==0.22.1+cu126
+opencv-python==5.0.0.93
+numpy==2.5.2

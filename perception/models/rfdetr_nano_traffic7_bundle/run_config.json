@@ -1,0 +1,33 @@
+{
+  "signature": {
+    "model": "RFDETRNano",
+    "rfdetr_version": "1.11.1",
+    "resolution": 512,
+    "class_names": [
+      "car",
+      "bus",
+      "van",
+      "others",
+      "person",
+      "motorcycle",
+      "traffic light"
+    ],
+    "dataset_sha256": "fc1b6bad22b838e76a4f8e8c1f5b2ef3db71b6844904fd0ab780574ba849e5b7",
+    "dataset_hash_policy": "training_content_v2",
+    "batch_size": 16,
+    "grad_accum_steps": 1,
+    "lr": 0.0001,
+    "lr_encoder": 0.00015,
+    "seed": 42,
+    "multi_scale": false,
+    "expanded_scales": false,
+    "partial_label_policy": "source_mask_car_van_union_v1"
+  },
+  "target_epochs": 32,
+  "updated_utc": "2026-10-04T19:00:21.669057+00:00",
+  "gpu": "Tesla T4",
+  "torch_version": "2.11.0+cu128",
+  "runtime": "kaggle",
+  "run_name": "run2",
+  "dataset_note": "Custom detection holdouts, not official source test benchmarks. Source labels are partial and broad car includes vans; use the notebook's source-aware evaluation."
+}

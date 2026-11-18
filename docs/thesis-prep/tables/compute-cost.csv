@@ -1,0 +1,8 @@
+Run,Generations,Fit clips,Held-out clips,Wall time (min)
+Choice fit (6 params),25,6,6,17.6
+Priority fit (25 params),80,6,6,44.2
+"Priority fit, contact weight 3",80,6,6,41.1
+"Priority + separating, weight 3",80,6,6,44.5
+Recovery test (12 params),30,3,0,23.0
+"Sensitivity, choice (12 params)",-,12,0,77.4
+"Sensitivity, priority (25 params)",-,12,0,24.2

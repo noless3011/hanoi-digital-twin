@@ -1,0 +1,142 @@
+% Algorithms for the thesis, in algorithm2e (DoAn.tex already loads it: \usepackage[ruled,vlined]{algorithm2e}).
+% Paste one algorithm environment where it belongs and translate the comments and captions.
+% Notation follows docs/thesis-prep/01-method.md.
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{One simulation step (engine, twin/engine.py)}\label{alg:step}
+\KwIn{time $t$, step $\Delta t$, active vehicles $A$ with route coordinates $(s_i, d_i, v_i)$, behaviour model $\mathcal{M}$, arrivals not yet entered}
+\KwOut{state at $t + \Delta t$, recorded samples, contacts}
+\ForEach{arrival $a$ with $t_a \le t$}{
+  $(v, d) \leftarrow \mathcal{M}.\mathrm{SampleDriver}(a, \mathrm{rng})$\tcp*{fixed number of random draws}
+  place $a$ at the start of its route with speed $v$ and offset $d$\tcp*{no check for room}
+}
+$V \leftarrow \mathrm{View}(A)$\tcp*{poses; every nearby pair $(i,j)$ projected into $i$'s route coordinates}
+$(\mathbf{a}, \dot{\mathbf{d}}) \leftarrow \mathcal{M}.\mathrm{Decide}(V)$\;
+\ForEach{$i \in A$}{
+  $v_i' \leftarrow \max(v_i + a_i \Delta t,\ 0)$\;
+  $s_i \leftarrow s_i + \tfrac{1}{2}(v_i + v_i')\Delta t$;\quad $d_i \leftarrow d_i + \dot d_i \Delta t$;\quad $v_i \leftarrow v_i'$\;
+}
+record every vehicle's sample; for every pair of overlapping bodies (oriented boxes shrunk 10\%, separating-axis test) record a contact\;
+remove vehicles past the end of their route\;
+$t \leftarrow t + \Delta t$\;
+\end{algorithm}
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{Choice model: one decision for every driver (twin/behaviour/choice.py)}\label{alg:choice}
+\KwIn{view $V$; per driver: desired speed $v_0$, caution $c$, parameters $\theta$; horizon $\tau$}
+\KwOut{acceleration $a_i$ and sideways speed $\dot d_i$ for every driver}
+$\mathcal{A} \leftarrow \{-2b, -b, -0.4b, 0, 0.5a, a\} \times \{-1, -0.3, 0, 0.3, 1\}\cdot v_\mathrm{lat}$\tcp*{30 actions}
+\ForEach{driver $i$ \textbf{(vectorised over all drivers)}}{
+  \ForEach{action $k \in \mathcal{A}$}{
+    predict own position $(s_i(t_m), d_i(t_m))$ and speed at $M=5$ times $t_m \in (0, \tau]$\;
+    predict every nearby $j$ at the same times (constant velocity)\;
+    $C_\mathrm{prog} \leftarrow \bigl(\frac{v_i(\tau) - v_0}{v_0}\bigr)^2 (1 + w_i / T_\mathrm{imp})$\tcp*{$w_i$: time waited}
+    $C_\mathrm{risk} \leftarrow w_\mathrm{risk}\, c \sum_j \max_m \bigl[p_\mathrm{long}^2\, p_\mathrm{side} + H\cdot \mathbb{1}[\text{overlap}](1 + \text{depth})\bigr]$\;
+    $C_\mathrm{open} \leftarrow$ share of $v_0$ that slower or oncoming vehicles in line ahead do not allow at the offset reached\;
+    $C_\mathrm{clear} \leftarrow$ coming to rest in the way of a waiting crosser, weighted by its waiting time\;
+    $C_\mathrm{pos} \leftarrow w_\mathrm{pos}\,(d_i(\tau) - d^\ast_i)^2 + $ road-edge penalty\;
+    $C_\mathrm{eff} \leftarrow$ effort of hard acceleration, braking and sideways movement\;
+    $C_k \leftarrow C_\mathrm{prog} + C_\mathrm{risk} + C_\mathrm{open} + C_\mathrm{clear} + C_\mathrm{pos} + C_\mathrm{eff} + C_\mathrm{signal} - \mathrm{STICK}\cdot\mathbb{1}[k = k_\mathrm{last}]$\;
+  }
+  $k^\ast \leftarrow \arg\min_k C_k$\;
+  $(a_i, \dot d_i) \leftarrow$ action $k^\ast$, easing in near its speed limit\;
+}
+\end{algorithm}
+% where p_long = clip(1 - gap / (s0 + T v), 0, 1) and p_side = clip((clat - side gap) / (clat + narrower width), 0, 1).
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{Priority model: one decision for every driver (twin/behaviour/priority.py)}\label{alg:priority}
+\KwIn{view $V$; seniority key $k_i$ (entry order); speed profile $\bar v_r(s)$; driver factor $f_i$; parameters $T, s_0, c_\mathrm{lat}$}
+\KwOut{$a_i$, $\dot d_i$}
+\ForEach{pair $(i,j)$ with $j$ ahead of $i$ and in its line (now or within 2\,s at $j$'s sideways speed)}{
+  \If{$k_j > k_i$ \KwSty{and} same direction \KwSty{and} gap $< 20$\,m}{swap $k_i, k_j$\tcp*{the one in front leads}}
+}
+\ForEach{driver $i$}{
+  $S_i \leftarrow \{ j \text{ in line ahead} : k_j < k_i\}$\tcp*{only senior vehicles count}
+  $v^\mathrm{safe}_i \leftarrow \min_{j \in S_i,\ j \text{ not oncoming}} \Bigl(-bT + \sqrt{(bT)^2 + v_j^2 + 2b\,\max(g_{ij} - s_0, 0)}\Bigr)$\tcp*{Gipps}
+  \If{red light ahead}{$v^\mathrm{safe}_i \leftarrow \min(v^\mathrm{safe}_i,$ safe speed to the stop line$)$}
+  \If{body touches a senior vehicle ahead and in line}{$v^\mathrm{safe}_i \leftarrow 0$}
+  $a_i \leftarrow \mathrm{clip}\bigl((\min(f_i \bar v_{r_i}(s_i), v^\mathrm{safe}_i) - v_i)/0.5\,\mathrm{s},\ -6,\ 2\bigr)$\;
+  $\dot d_i \leftarrow$ drift back to own share of the road width, unless someone is beside on that side\;
+  \lIf{oncoming senior vehicle within 25\,m in line}{move aside, away from its line}
+  \lIf{touching a senior vehicle}{move sideways away from it}
+}
+\end{algorithm}
+% Property: the most senior vehicle reacts to nobody, so it always drives on; no cycle of waiting can form.
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{Image-space score between a video and a simulation (twin/measure/image\_score.py)}\label{alg:score}
+\KwIn{video boxes $B^V$ (tracker), simulated boxes $B^S$ (vehicles projected through the camera matrix), counting lines $G$, weights $w$}
+\KwOut{distance $D \in [0, 1]$ and its parts}
+\ForEach{side $X \in \{V, S\}$}{
+  drop boxes where the road scale is below 2.5\,px/m; take the bottom centre of each box as the position\;
+  $F^X_\mathrm{map} \leftarrow$ mean vehicles per frame in 16\,px cells, Gaussian blur $\sigma = 1$ cell\;
+  $F^X_\mathrm{time} \leftarrow$ vehicles per zone ($6 \times 4$) per 10\,s bin\;
+  $F^X_\mathrm{motion} \leftarrow$ image velocity over 0.6\,s divided by the road scale, per zone and group\;
+  $F^X_\mathrm{cross} \leftarrow$ times at which tracks cross each line of $G$\;
+  $F^X_\mathrm{space} \leftarrow$ distance to the nearest other vehicle divided by the road scale, per group\;
+}
+$D_\mathrm{map} \leftarrow \mathrm{BC}(F^V_\mathrm{map}, F^S_\mathrm{map})$;\quad $D_\mathrm{time} \leftarrow \mathrm{BC}(F^V_\mathrm{time}, F^S_\mathrm{time})$\tcp*{Bray--Curtis}
+$D_\mathrm{motion} \leftarrow$ weighted mean over keys of $\min\bigl(1, \frac{W_1(u_x^V, u_x^S) + W_1(u_y^V, u_y^S)}{2\,\overline{|u^V|}}\bigr)$\;
+$D_\mathrm{cross} \leftarrow$ per line, $\sum_t |N^V(t) - N^S(t)| \,/\, \sum_t \max(N^V(t), N^S(t))$, weighted by count\;
+$D_\mathrm{head} \leftarrow W_1$ of time gaps between crossings / video mean;\quad $D_\mathrm{space} \leftarrow W_1$ of spacing / video mean\;
+$D \leftarrow \sum_p w_p D_p \,/\, \sum_p w_p$ over the parts both sides have data for\;
+\end{algorithm}
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{Calibration by CMA-ES (twin/calibrate/search.py)}\label{alg:cmaes}
+\KwIn{clips $\mathcal{C}$ (each: replayed arrivals $\mathcal{D}_c$ and video features $F^V_c$); model $\mathcal{M}$ with parameters $\theta \in \prod_k [l_k, h_k]$; seeds $\mathcal{S}$; population $\lambda$; generations $G$}
+\KwOut{fitted parameters $\hat\theta$}
+map each parameter to $x_k \in [0,1]$ (log scale for positive quantities); $m \leftarrow x(\theta_0)$, $\sigma \leftarrow 0.2$\;
+\For{$g \leftarrow 1$ \KwTo $G$}{
+  sample $x^{(1)}, \dots, x^{(\lambda)} \sim \mathcal{N}(m, \sigma^2 C)$, clipped to $[0,1]^n$\;
+  \ForEach{candidate $\ell$, clip $c$, seed $s$ \textbf{(in parallel)}}{
+    simulate $\mathcal{D}_c$ with $\mathcal{M}(\theta(x^{(\ell)}))$ and seed $s$\tcp*{same seeds for all candidates}
+    stop early if more than 80 vehicles are on the road (jam)\;
+    $J_{\ell c s} \leftarrow D(F^V_c, F^S) + \alpha\,\frac{\text{touching pairs}}{\text{vehicles}} + \beta\cdot\text{share not simulated}$\;
+  }
+  $J_\ell \leftarrow \mathrm{mean}_{c,s}\, J_{\ell c s}$\;
+  update $m$, $\sigma$, $C$ from the ranked $(x^{(\ell)}, J_\ell)$\tcp*{CMA-ES}
+}
+re-score the best candidate seen and the final mean $m$ on fresh seeds; $\hat\theta \leftarrow$ the better\;
+score $\hat\theta$ on held-out clips\;
+\end{algorithm}
+% alpha = 0.5 (contact weight), beta = 1 (jam weight), lambda = 12-20, |S| = 1 during the search, 3 for checks.
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{Global sensitivity by Morris elementary effects (twin/calibrate/sensitivity.py)}\label{alg:morris}
+\KwIn{$n$ parameters scaled to $[0,1]$; $r$ trajectories; grid of 4 levels; step $\Delta = 2/3$}
+\KwOut{for each parameter: $\mu^\ast$ (mean $|$effect$|$), $\sigma$ (spread of signed effects); noise floor}
+\For{$t \leftarrow 1$ \KwTo $r$}{
+  draw a start $x^{(0)}$ on the grid and a random order $\pi$ of the parameters\;
+  \For{$q \leftarrow 1$ \KwTo $n$}{
+    $x^{(q)} \leftarrow x^{(q-1)}$ with parameter $\pi_q$ moved by $\pm\Delta$\;
+  }
+  simulate every point $x^{(0)}, \dots, x^{(n)}$ on every clip with seed $s_t$; $y^{(q)} \leftarrow$ mean score\;
+  $EE_{\pi_q}^{(t)} \leftarrow \mathrm{sign}(\pm\Delta)\,(y^{(q)} - y^{(q-1)})$ for each $q$\;
+  noise: simulate $x^{(0)}$ again with another seed; $\epsilon_t \leftarrow |y^{(0)}_{s'} - y^{(0)}_{s_t}|$\;
+}
+$\mu^\ast_k \leftarrow \mathrm{mean}_t |EE_k^{(t)}|$;\quad $\sigma_k \leftarrow \mathrm{std}_t\, EE_k^{(t)}$;\quad noise floor $\leftarrow \mathrm{mean}_t\, \epsilon_t$\;
+\end{algorithm}
+
+% ---------------------------------------------------------------------------------------------
+\begin{algorithm}[H]
+\caption{Demand from video: arrivals to replay (twin/measure/demand.py)}\label{alg:demand}
+\KwIn{tracker output (boxes with IDs), camera, road layout (routes)}
+\KwOut{arrivals $(t_a, \text{kind}, \text{route}, d_a, v_a)$}
+project each box's bottom centre to the road plane (metres)\;
+Kalman/RTS-smooth each track; stitch tracks broken by the tracker (gap, distance and heading limits)\;
+match each track to the routes it fits (distance to the route line, direction)\;
+\ForEach{track first seen within 15\,m of the visible start of its route}{
+  extrapolate back to the route start: $t_a \leftarrow t_\mathrm{first} - \Delta s / v_\mathrm{first}$\;
+  \eIf{one candidate route}{take it}{draw one from the turning shares of tracks from the same entry seen past the split (seeded)}
+  emit arrival with entry offset $d_a$ and speed $v_a$ as first seen\;
+}
+tracks first seen further in are re-acquisitions: counted, not replayed\;
+\end{algorithm}

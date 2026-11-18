@@ -1,0 +1,5 @@
+# PyTorch / torchvision CUDA or CPU builds are installed by the root setup.ps1.
+# Provides the TrackTrack tracker used by vehicle_tracking.py (no YOLO model is used).
+ultralytics==8.4.171
+# Assignment solver imported by the TrackTrack backend.
+lap==0.5.13

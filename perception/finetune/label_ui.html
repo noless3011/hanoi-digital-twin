@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Box Labeller</title>
+<style>
+  :root {
+    --bg: #f4f3ef; --panel: #ffffff; --ink: #1f1f1e; --muted: #6b6a64; --line: #dddcd5;
+    --accent: #2a78d6; --done: #1baf7a; --skip: #9a9890;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: grid; grid-template-columns: 250px 1fr; grid-template-rows: auto 1fr auto; height: 100vh; }
+  header { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 8px 12px;
+    background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 14px; margin: 0 6px 0 0; }
+  .classes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cls { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 9px;
+    cursor: pointer; display: flex; align-items: center; gap: 6px; font: inherit; color: var(--ink); }
+  .cls .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .cls kbd { color: var(--muted); font-size: 11px; }
+  .cls.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
+  .grow { flex: 1; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 5px 11px;
+    cursor: pointer; font: inherit; color: var(--ink); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #saveState { color: var(--muted); min-width: 70px; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); overflow: hidden; display: flex; flex-direction: column; }
+  .progress { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .bar > div { height: 100%; background: var(--done); width: 0; }
+  .filters { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .filters button { flex: 1; }
+  .filters .on { border-color: var(--ink); }
+  #list { overflow-y: auto; flex: 1; }
+  .row { padding: 6px 12px; cursor: pointer; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #f0efea; }
+  .row:hover { background: #f7f6f2; }
+  .row.cur { background: #e8f0fb; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+  .dot.done { background: var(--done); } .dot.skip { background: var(--skip); }
+  .row .meta { color: var(--muted); font-size: 11px; }
+  main { position: relative; overflow: hidden; background: #2b2b29; }
+  canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  footer { grid-column: 1 / 3; padding: 6px 12px; background: var(--panel); border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 12px; display: flex; gap: 18px; flex-wrap: wrap; }
+  footer b { color: var(--ink); font-weight: 600; }
+  #info { position: absolute; left: 10px; top: 8px; color: #fff; background: rgba(0,0,0,.55); padding: 3px 8px;
+    border-radius: 4px; font-size: 12px; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Box Labeller</h1>
+  <div class="classes" id="classes"></div>
+  <div class="grow"></div>
+  <span id="saveState"></span>
+  <button class="btn" id="skipBtn" title="S">Skip</button>
+  <button class="btn" id="prevBtn" title="A or ←">◀ Prev</button>
+  <button class="btn" id="nextBtn" title="D or →">Next ▶</button>
+  <button class="btn primary" id="doneBtn" title="Enter">Done ✓</button>
+</header>
+<aside>
+  <div class="progress"><span id="progressText"></span><div class="bar"><div id="progressBar"></div></div></div>
+  <div class="filters">
+    <button class="btn on" data-f="all">All</button>
+    <button class="btn" data-f="todo">To do</button>
+    <button class="btn" data-f="done">Done</button>
+  </div>
+  <div id="list"></div>
+</aside>
+<main><canvas id="cv"></canvas><div id="info"></div></main>
+<footer>
+  <span><b>Drag</b> on empty space: new box</span>
+  <span><b>Click</b> box: select · drag to move · drag corner/edge to resize</span>
+  <span><b>1–6</b> class (also changes the selected box)</span>
+  <span><b>Del</b> delete · <b>Ctrl+Z</b> undo</span>
+  <span><b>Wheel</b> zoom · <b>Right-drag</b> or <b>Space+drag</b> pan · <b>F</b> fit</span>
+  <span><b>H</b> hide boxes · <b>Enter</b> done &amp; next to-do · <b>S</b> skip · <b>A/D</b> prev/next</span>
+</footer>
+<script>
+const COLORS = { car: "#eb6834", bus: "#1baf7a", van: "#eda100", others: "#e87ba4", motorcycle: "#2a78d6",
+                 ignore: "#9a9890", person: "#7a5cd6", "traffic light": "#008300" };
+const HANDLE = 6;           // screen pixels
+const MIN_BOX = 2;          // image pixels
+
+let classes = [], items = [], filter = "all", idx = -1;
+let boxes = [], status = "todo", undo = [], selected = -1, current = "motorcycle", hide = false;
+let img = new Image(), view = { s: 1, x: 0, y: 0 }, drag = null, space = false, mouse = null, dirty = false, saveTimer = null;
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  return r.json();
+}
+
+async function init() {
+  const p = await api("/api/project");
+  classes = p.classes; items = p.items;
+  if (!classes.includes(current)) current = classes[0];
+  const bar = document.getElementById("classes");
+  classes.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.className = "cls"; b.dataset.cls = c;
+    b.innerHTML = `<span class="sw" style="background:${COLORS[c] || "#888"}"></span>${c} <kbd>${i + 1}</kbd>`;
+    b.onclick = () => setClass(c);
+    bar.appendChild(b);
+  });
+  setClass(current);
+  renderList();
+  const first = items.findIndex(i => i.status === "todo");
+  await open(first >= 0 ? first : 0);
+}
+
+function setClass(c) {
+  current = c;
+  document.querySelectorAll(".cls").forEach(b => b.classList.toggle("on", b.dataset.cls === c));
+  if (selected >= 0 && boxes[selected].cls !== c) { push(); boxes[selected].cls = c; changed(); }
+  draw();
+}
+
+function renderList() {
+  const done = items.filter(i => i.status === "done").length, skip = items.filter(i => i.status === "skip").length;
+  document.getElementById("progressText").textContent = `${done} done · ${skip} skipped · ${items.length} frames`;
+  document.getElementById("progressBar").style.width = `${100 * (done + skip) / Math.max(items.length, 1)}%`;
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  items.forEach((it, i) => {
+    if (filter !== "all" && (filter === "done" ? it.status === "todo" : it.status !== "todo")) return;
+    const r = document.createElement("div");
+    r.className = "row" + (i === idx ? " cur" : "");
+    r.innerHTML = `<span class="dot ${it.status}"></span><div><div>${it.camera} · ${it.time_s}s</div>
+      <div class="meta">${it.video.split("/")[0].slice(-8)} · ${it.boxes} boxes</div></div>`;
+    r.onclick = () => open(i);
+    list.appendChild(r);
+  });
+  const cur = list.querySelector(".cur");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+}
+
+let loading = false;   // true while switching frames; edits and saves must wait so boxes never land on the wrong frame
+async function open(i) {
+  if (i < 0 || i >= items.length || loading) return;
+  loading = true;
+  let lab;
+  try {
+    await flush();
+    lab = await api(`/api/labels/${items[i].id}`);   // switch frames only once its labels are here
+    idx = i; boxes = lab.boxes; status = lab.status; undo = []; selected = -1; dirty = false;
+  } finally { loading = false; }
+  const it = items[idx];
+  img = new Image();
+  img.onload = () => { fit(); draw(); };
+  img.src = `/images/${it.id}.jpg`;
+  renderList();
+  setSave(lab.prelabelled && status === "todo" ? "pre-labelled" : status);
+}
+
+function setSave(t) { document.getElementById("saveState").textContent = t; }
+function push() { undo.push(JSON.stringify(boxes)); if (undo.length > 200) undo.shift(); }
+function changed() { dirty = true; setSave("…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 500); }
+
+async function flush() {
+  clearTimeout(saveTimer);
+  if (!dirty || idx < 0) return;
+  dirty = false;
+  const it = items[idx];
+  try {
+    const saved = await api(`/api/labels/${it.id}`, { method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, boxes }) });
+    it.status = saved.status; it.boxes = saved.boxes.length;
+    setSave("saved"); renderList();
+  } catch (e) { dirty = true; setSave("save failed: " + e.message); }
+}
+
+async function finish(newStatus) {
+  if (loading) return;
+  status = newStatus; dirty = true; await flush();
+  const next = items.findIndex((it, i) => i > idx && it.status === "todo");
+  const wrap = items.findIndex(it => it.status === "todo");
+  if (next >= 0) open(next); else if (wrap >= 0) open(wrap); else setSave("all frames done");
+}
+
+// ---------------------------------------------------------------- view
+function resize() {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = r.width * d; cv.height = r.height * d;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+}
+function fit() {
+  resize();
+  const r = cv.getBoundingClientRect();
+  if (!img.width) return;
+  view.s = Math.min(r.width / img.width, r.height / img.height) * 0.96;
+  view.x = (r.width - img.width * view.s) / 2; view.y = (r.height - img.height * view.s) / 2;
+}
+const toImg = (sx, sy) => [(sx - view.x) / view.s, (sy - view.y) / view.s];
+const toScr = (ix, iy) => [ix * view.s + view.x, iy * view.s + view.y];
+
+function draw() {
+  const r = cv.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  if (!img.width) return;
+  ctx.imageSmoothingEnabled = view.s < 4;
+  ctx.drawImage(img, view.x, view.y, img.width * view.s, img.height * view.s);
+  if (!hide) boxes.forEach((b, i) => drawBox(b, i === selected));
+  if (drag && drag.kind === "new") drawBox(drag.box, true);
+  if (mouse && !drag) {           // crosshair to line up box edges
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(mouse[0], 0); ctx.lineTo(mouse[0], r.height);
+    ctx.moveTo(0, mouse[1]); ctx.lineTo(r.width, mouse[1]); ctx.stroke();
+  }
+  const it = items[idx];
+  document.getElementById("info").textContent =
+    `${idx + 1}/${items.length} · ${it.camera} · ${it.video} @ ${it.time_s}s · ${boxes.length} boxes · ${status} · zoom ${view.s.toFixed(1)}×`;
+}
+
+function drawBox(b, sel) {
+  const [x1, y1] = toScr(b.x1, b.y1), [x2, y2] = toScr(b.x2, b.y2), c = COLORS[b.cls] || "#888";
+  ctx.lineWidth = sel ? 2.5 : 1.5; ctx.strokeStyle = c;
+  if (b.cls === "ignore") { ctx.fillStyle = "rgba(154,152,144,.35)"; ctx.fillRect(x1, y1, x2 - x1, y2 - y1); }
+  ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  if (sel) {
+    ctx.fillStyle = "#fff";
+    for (const [hx, hy] of corners(b)) { const [sx, sy] = toScr(hx, hy); ctx.fillRect(sx - 3, sy - 3, 6, 6); ctx.strokeRect(sx - 3, sy - 3, 6, 6); }
+  }
+  if (view.s * (b.x2 - b.x1) > 28 || sel) {
+    ctx.font = "11px system-ui"; const w = ctx.measureText(b.cls).width + 6;
+    ctx.fillStyle = c; ctx.fillRect(x1, y1 - 14, w, 14); ctx.fillStyle = "#fff"; ctx.fillText(b.cls, x1 + 3, y1 - 3);
+  }
+}
+const corners = b => [[b.x1, b.y1], [b.x2, b.y1], [b.x2, b.y2], [b.x1, b.y2]];
+
+// Which part of which box is under the pointer: a handle of the selected box first, then the smallest box.
+function hit(sx, sy) {
+  const [ix, iy] = toImg(sx, sy), tol = HANDLE / view.s;
+  if (selected >= 0 && !hide) {
+    const b = boxes[selected];
+    const nearL = Math.abs(ix - b.x1) < tol, nearR = Math.abs(ix - b.x2) < tol;
+    const nearT = Math.abs(iy - b.y1) < tol, nearB = Math.abs(iy - b.y2) < tol;
+    const inX = ix > b.x1 - tol && ix < b.x2 + tol, inY = iy > b.y1 - tol && iy < b.y2 + tol;
+    const edges = (nearL && inY ? "l" : "") + (nearR && inY ? "r" : "") + (nearT && inX ? "t" : "") + (nearB && inX ? "b" : "");
+    if (edges) return { i: selected, edges };
+  }
+  if (hide) return null;
+  let best = -1, area = Infinity;
+  boxes.forEach((b, i) => {
+    if (ix >= b.x1 && ix <= b.x2 && iy >= b.y1 && iy <= b.y2) {
+      const a = (b.x2 - b.x1) * (b.y2 - b.y1);
+      if (a < area) { area = a; best = i; }
+    }
+  });
+  return best >= 0 ? { i: best, edges: "" } : null;
+}
+
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("mousedown", e => {
+  const sx = e.offsetX, sy = e.offsetY;
+  if (e.button === 2 || e.button === 1 || space) { drag = { kind: "pan", sx, sy, vx: view.x, vy: view.y }; return; }
+  const h = hit(sx, sy);
+  if (h) {
+    selected = h.i; push();
+    drag = { kind: h.edges ? "resize" : "move", edges: h.edges, start: toImg(sx, sy), orig: { ...boxes[h.i] }, moved: false };
+    const c = boxes[h.i].cls; current = c;
+    document.querySelectorAll(".cls").forEach(b => b.classList.toggle("on", b.dataset.cls === c));
+  } else {
+    selected = -1;
+    const [ix, iy] = toImg(sx, sy);
+    drag = { kind: "new", start: [ix, iy], box: { x1: ix, y1: iy, x2: ix, y2: iy, cls: current } };
+  }
+  draw();
+});
+window.addEventListener("mousemove", e => {
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  mouse = sx >= 0 && sy >= 0 && sx <= r.width && sy <= r.height ? [sx, sy] : null;
+  if (!drag) {
+    const h = mouse && hit(sx, sy);
+    cv.style.cursor = space ? "grab" : !h ? "crosshair" : h.edges ? ({ l: "ew-resize", r: "ew-resize", t: "ns-resize", b: "ns-resize",
+      lt: "nwse-resize", rb: "nwse-resize", rt: "nesw-resize", lb: "nesw-resize" }[h.edges] || "move") : "move";
+    draw(); return;
+  }
+  if (drag.kind === "pan") { view.x = drag.vx + sx - drag.sx; view.y = drag.vy + sy - drag.sy; draw(); return; }
+  const [ix, iy] = toImg(sx, sy).map((v, k) => Math.max(0, Math.min(v, k ? img.height : img.width)));
+  if (drag.kind === "new") {
+    const [ax, ay] = drag.start;
+    Object.assign(drag.box, { x1: Math.min(ax, ix), y1: Math.min(ay, iy), x2: Math.max(ax, ix), y2: Math.max(ay, iy) });
+  } else {
+    const b = boxes[selected], o = drag.orig, dx = ix - drag.start[0], dy = iy - drag.start[1];
+    drag.moved = true;
+    if (drag.kind === "move") {
+      const w = o.x2 - o.x1, hgt = o.y2 - o.y1;
+      b.x1 = Math.max(0, Math.min(o.x1 + dx, img.width - w)); b.x2 = b.x1 + w;
+      b.y1 = Math.max(0, Math.min(o.y1 + dy, img.height - hgt)); b.y2 = b.y1 + hgt;
+    } else {
+      if (drag.edges.includes("l")) b.x1 = Math.min(o.x1 + dx, b.x2 - MIN_BOX);
+      if (drag.edges.includes("r")) b.x2 = Math.max(o.x2 + dx, b.x1 + MIN_BOX);
+      if (drag.edges.includes("t")) b.y1 = Math.min(o.y1 + dy, b.y2 - MIN_BOX);
+      if (drag.edges.includes("b")) b.y2 = Math.max(o.y2 + dy, b.y1 + MIN_BOX);
+    }
+  }
+  draw();
+});
+window.addEventListener("mouseup", () => {
+  if (!drag) return;
+  if (drag.kind === "new") {
+    const b = drag.box;
+    if (b.x2 - b.x1 >= MIN_BOX && b.y2 - b.y1 >= MIN_BOX) { push(); boxes.push(b); selected = boxes.length - 1; changed(); }
+  } else if (drag.kind !== "pan") {
+    if (drag.moved) changed(); else undo.pop();
+  }
+  drag = null; draw();
+});
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const f = Math.exp(-e.deltaY * 0.0015), s = Math.max(0.2, Math.min(view.s * f, 40));
+  view.x = e.offsetX - (e.offsetX - view.x) * s / view.s;
+  view.y = e.offsetY - (e.offsetY - view.y) * s / view.s;
+  view.s = s; draw();
+}, { passive: false });
+
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key;
+  if (k === " ") { space = true; e.preventDefault(); return; }
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "z") {
+    if (undo.length) { boxes = JSON.parse(undo.pop()); selected = -1; changed(); draw(); }
+    e.preventDefault(); return;
+  }
+  if (/^[1-9]$/.test(k) && classes[+k - 1]) { setClass(classes[+k - 1]); return; }
+  if ((k === "Delete" || k === "Backspace") && selected >= 0) { push(); boxes.splice(selected, 1); selected = -1; changed(); draw(); e.preventDefault(); return; }
+  if (k === "Escape") { selected = -1; drag = null; draw(); return; }
+  if (k === "Enter") { if (!e.repeat) finish("done"); e.preventDefault(); return; }   // holding Enter must not mark a run of frames done
+  const l = k.toLowerCase();
+  if (l === "s") { if (!e.repeat) finish("skip"); }
+  else if (l === "a" || k === "ArrowLeft") open(idx - 1);
+  else if (l === "d" || k === "ArrowRight") open(idx + 1);
+  else if (l === "h") { hide = !hide; draw(); }
+  else if (l === "f") { fit(); draw(); }
+});
+window.addEventListener("keyup", e => { if (e.key === " ") space = false; });
+window.addEventListener("resize", () => { resize(); draw(); });
+window.addEventListener("beforeunload", () => { if (dirty) navigator.sendBeacon && flush(); });
+
+document.getElementById("doneBtn").onclick = () => finish("done");
+document.getElementById("skipBtn").onclick = () => finish("skip");
+document.getElementById("prevBtn").onclick = () => open(idx - 1);
+document.getElementById("nextBtn").onclick = () => open(idx + 1);
+document.querySelectorAll(".filters button").forEach(b => b.onclick = () => {
+  filter = b.dataset.f;
+  document.querySelectorAll(".filters button").forEach(x => x.classList.toggle("on", x === b));
+  renderList();
+});
+init().catch(e => { document.body.innerHTML = `<p style="padding:20px">Cannot load project: ${e.message}</p>`; });
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Feed serving and YouTube extraction need no model framework.
+opencv-python>=4.10,<6
+numpy>=1.26,<3
+yt-dlp[default]==2026.8.19
+# iHanoi WebSocket transport and HEVC decoding.
+websockets>=15,<18
+av>=14,<17

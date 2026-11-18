@@ -1,0 +1,14 @@
+{
+  "prediction_index_to_name": {
+    "0": "car",
+    "1": "bus",
+    "2": "van",
+    "3": "others"
+  },
+  "coco_category_id_to_name": {
+    "1": "car",
+    "2": "bus",
+    "3": "van",
+    "4": "others"
+  }
+}

@@ -1,0 +1,14 @@
+% Projected simulation vs tracked video; means over 6 clips x 3 seeds; objective = score + 0.5 x contacts per vehicle + jammed share
+\begin{tabular}{|l|r|r|r|r|r|r|}
+\hline
+\multirow{2}{*}{\textbf{Model}} & \multicolumn{3}{c|}{\textbf{Fit clips (6 Nov)}} & \multicolumn{3}{c|}{\textbf{Held-out clips (8 Nov)}} \\
+\cline{2-7}
+ & Score & Objective & Contacts & Score & Objective & Contacts \\
+\hline
+Constant speed & 0.333 & 0.986 & 1.31 & 0.315 & 0.887 & 1.14 \\
+Choice, defaults & 0.248 & 0.297 & 0.10 & 0.262 & 0.320 & 0.12 \\
+Choice, fitted & 0.233 & 0.281 & 0.10 & 0.260 & 0.318 & 0.12 \\
+Priority, start & 0.323 & 0.412 & 0.18 & 0.303 & 0.385 & 0.16 \\
+Priority, fitted & 0.252 & 0.288 & 0.07 & 0.271 & 0.311 & 0.08 \\
+\hline
+\end{tabular}

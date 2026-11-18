@@ -1,0 +1,26 @@
+{
+  "signature": {
+    "model": "RFDETRNano",
+    "rfdetr_version": "1.11.1",
+    "resolution": 384,
+    "class_names": [
+      "car",
+      "bus",
+      "van",
+      "others"
+    ],
+    "dataset_sha256": "a5c711e80432cf38c45ff710a02d3114ce11d6303ad076d28453795bee2df324",
+    "batch_size": 4,
+    "grad_accum_steps": 4,
+    "lr": 0.0001,
+    "lr_encoder": 0.00015,
+    "seed": 42,
+    "multi_scale": false,
+    "expanded_scales": false
+  },
+  "target_epochs": 30,
+  "updated_utc": "2026-10-04T05:40:58.834311+00:00",
+  "gpu": "Tesla T4",
+  "torch_version": "2.11.0+cu130",
+  "dataset_note": "Custom sequence holdouts with frame sampling and ignored-region masking; not the official UA-DETRAC benchmark. Use original complete unmasked sequences and official toolkit for tracking evaluation."
+}

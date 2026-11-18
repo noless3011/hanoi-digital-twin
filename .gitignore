@@ -1,0 +1,51 @@
+.venv/
+__pycache__/
+*.py[cod]
+runs/
+.ultralytics/
+*.log
+data/
+vehicle-models/node_modules/
+vehicle-models/out/
+
+# Unity (generated)
+simulation/Library/
+simulation/Temp/
+simulation/Obj/
+simulation/Logs/
+simulation/UserSettings/
+simulation/.vs/
+simulation/*.csproj
+simulation/*.slnx
+
+# .NET build output
+bin/
+obj/
+
+# Large or generated binaries (kept on disk, not versioned)
+*.pth
+.traffic7_work/
+*.dll
+*.exe
+*.pdb
+*.mp4
+node_modules/
+
+# Headless simulation player
+simulation/Builds/
+
+# Prepared detector datasets (images; rebuild with perception/finetune or perception/training)
+perception/models/*_coco/
+perception/models/.traffic7_work/
+
+# Simulation output for the Unity player (regenerate with python -m twin.run)
+simulation/Assets/StreamingAssets/Traffic/simulation.trajectories.json
+simulation/Assets/StreamingAssets/Traffic/simulation.trajectories.json.meta
+# Rendered model videos and the commands that made them (kept local, not published)
+videos/
+
+# Archives
+*.zip
+
+# Thesis (kept local, not published)
+thesis/

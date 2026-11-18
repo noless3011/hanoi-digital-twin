@@ -1,0 +1,238 @@
+{
+  "format_version": 2,
+  "inputs_signature": "6aea118ce1c0b54b5f6ef4435f83c887c3e623bf7a8ac2c70bd29538f0d1aeb1",
+  "categories": [
+    {
+      "id": 1,
+      "name": "car",
+      "supercategory": "vehicle"
+    },
+    {
+      "id": 2,
+      "name": "bus",
+      "supercategory": "vehicle"
+    },
+    {
+      "id": 3,
+      "name": "van",
+      "supercategory": "vehicle"
+    },
+    {
+      "id": 4,
+      "name": "others",
+      "supercategory": "vehicle"
+    },
+    {
+      "id": 5,
+      "name": "person",
+      "supercategory": "object"
+    },
+    {
+      "id": 6,
+      "name": "motorcycle",
+      "supercategory": "vehicle"
+    },
+    {
+      "id": 7,
+      "name": "traffic light",
+      "supercategory": "object"
+    }
+  ],
+  "counts": {
+    "train": {
+      "images": 10188,
+      "annotations": 125309,
+      "images_per_source": {
+        "bdd100k": 6000,
+        "ua_detrac": 4188
+      },
+      "annotations_per_class": {
+        "car": 86563,
+        "bus": 3328,
+        "van": 2431,
+        "others": 2619,
+        "person": 11183,
+        "motorcycle": 2637,
+        "traffic light": 16548
+      }
+    },
+    "valid": {
+      "images": 1800,
+      "annotations": 18127,
+      "images_per_source": {
+        "bdd100k": 600,
+        "ua_detrac": 1200
+      },
+      "annotations_per_class": {
+        "car": 13533,
+        "bus": 236,
+        "van": 965,
+        "others": 324,
+        "person": 1153,
+        "motorcycle": 242,
+        "traffic light": 1674
+      }
+    },
+    "test": {
+      "images": 1200,
+      "annotations": 14399,
+      "images_per_source": {
+        "bdd100k": 600,
+        "ua_detrac": 600
+      },
+      "annotations_per_class": {
+        "car": 10458,
+        "bus": 197,
+        "van": 566,
+        "others": 264,
+        "person": 1019,
+        "motorcycle": 210,
+        "traffic light": 1685
+      }
+    }
+  },
+  "config": {
+    "seed": 42,
+    "ua_detrac_included": true,
+    "sampling": "per-source balanced caps; each official validation partition split into disjoint halves"
+  },
+  "sources": {
+    "bdd100k": {
+      "name": "BDD100K object detection",
+      "download_page": "https://github.com/bdd100k/bdd100k/blob/master/doc/source/download.rst",
+      "license_page": "https://bdd-data.berkeley.edu/license.html",
+      "license": "BDD100K dataset license; review source terms before use or redistribution",
+      "known_class_ids": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7
+      ],
+      "mapping": {
+        "car": "car",
+        "bus": "bus",
+        "truck": "others",
+        "pedestrian": "person",
+        "person": "person",
+        "rider": "person",
+        "motorcycle": "motorcycle",
+        "motor": "motorcycle",
+        "traffic light": "traffic light"
+      },
+      "train_annotations": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\bdd100k_-images-100k-DatasetNinja\\train\\ann",
+      "val_annotations": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\bdd100k_-images-100k-DatasetNinja\\val\\ann",
+      "annotation_format": "supervisely"
+    },
+    "ua_detrac": {
+      "name": "UA-DETRAC TRAIN",
+      "download_page": "https://sites.google.com/view/daweidu/projects/ua-detrac",
+      "license": "Source UA-DETRAC research terms; retain original provenance and review usage terms",
+      "known_class_ids": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "train_annotations": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\.traffic7_work\\c31ecca43d319ae3\\ua_annotations"
+    }
+  },
+  "crowd_policy": "exclude entire source image with any target crowd/ignore box",
+  "evaluation_note": "Custom detection holdouts, not official source test benchmarks. Source labels are partial and broad car includes vans; use the notebook's source-aware evaluation.",
+  "partial_label_policy": {
+    "image_fields": [
+      "known_class_ids",
+      "car_or_van"
+    ],
+    "requires_training_adapter": true,
+    "others_mapping": "UA-DETRAC others; road-dataset truck"
+  },
+  "missing_training_classes": [],
+  "local_preparation": {
+    "format_version": 1,
+    "config": {
+      "seed": 42,
+      "frame_stride": 5,
+      "max_frames_per_sequence": 100,
+      "expected_ua_sequences": 60,
+      "val_fraction": 0.2,
+      "test_fraction": 0.1,
+      "bdd_image_width": 1280,
+      "bdd_image_height": 720,
+      "bdd_train_cap": 6000,
+      "bdd_valid_cap": 600,
+      "bdd_test_cap": 600,
+      "classes": [
+        "car",
+        "bus",
+        "van",
+        "others",
+        "person",
+        "motorcycle",
+        "traffic light"
+      ],
+      "ignored_overlap_threshold": 0.5,
+      "jpeg_quality": 95,
+      "partial_label_policy": "source_mask_car_van_union_v1"
+    },
+    "source_identities": {
+      "bdd_images": {
+        "path": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\bdd100k_-images-100k-DatasetNinja",
+        "kind": "folder",
+        "size": 0,
+        "mtime_ns": 1791132975251886700,
+        "files": 200003,
+        "tree_metadata_sha256": "c11ee7d8b54ea6618cc09ebcac33de8b5b6b81cb1cd9043cff735223229af58e"
+      },
+      "bdd_annotations": {
+        "path": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\bdd100k_-images-100k-DatasetNinja",
+        "kind": "folder",
+        "size": 0,
+        "mtime_ns": 1791132975251886700,
+        "files": 200003,
+        "tree_metadata_sha256": "c11ee7d8b54ea6618cc09ebcac33de8b5b6b81cb1cd9043cff735223229af58e"
+      },
+      "ua_images": {
+        "path": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\detract\\DETRAC-Images",
+        "kind": "folder",
+        "size": 20480,
+        "mtime_ns": 1791134735695756800,
+        "files": 140131,
+        "tree_metadata_sha256": "0ef41c36e6179bc45b66deaf0cc9f689b393f2f8bcc79c0c49e96ba9c231a9be"
+      },
+      "ua_annotations": {
+        "path": "D:\\ProgrammingProjects\\AI\\digital-twin\\yolo\\models\\detract\\DETRAC-Train-Annotations-XML",
+        "kind": "folder",
+        "size": 12288,
+        "mtime_ns": 1791134749872773700,
+        "files": 60,
+        "tree_metadata_sha256": "d00de39b4ff8c020731dcbaae6b569706f6d690f4e08d3c46929ec861a748550"
+      }
+    }
+  },
+  "dataset_hash_policy": "training_content_v2",
+  "prepared_dataset_sha256": "fc1b6bad22b838e76a4f8e8c1f5b2ef3db71b6844904fd0ab780574ba849e5b7",
+  "prepared_annotations_sha256": {
+    "train": "a7da2c8e30d160b2070147e002dc8b347e4828815bb03e674e780ea5a6e7ea7e",
+    "valid": "562eade2bb7bc14be1453491019a8079594380bae7cf73b0644ef2198f80b06e",
+    "test": "955ae42aaccf878e706dc08e253fc62fe61dd60efdeeefa280dc0db343062c78"
+  },
+  "local_validation": {
+    "train": {
+      "sequences": 42,
+      "images": 10188,
+      "annotations": 125309
+    },
+    "valid": {
+      "sequences": 12,
+      "images": 1800,
+      "annotations": 18127
+    },
+    "test": {
+      "sequences": 6,
+      "images": 1200,
+      "annotations": 14399
+    }
+  }
+}
